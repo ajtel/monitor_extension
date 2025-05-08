@@ -78,6 +78,12 @@ ASTERISK="/usr/sbin/asterisk"
 MYSQL="/usr/bin/mysql"
 SENDMAIL="/usr/sbin/sendmail"
 
+# Función para codificar el Subject en Base64 (para acentos)
+encode_subject() {
+    subject="$1"
+    echo "=?UTF-8?B?$(echo -n "$subject" | base64)?="
+}
+
 # Función para registrar mensajes en el log
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S'): $1" >> "$LOG_FILE"
@@ -136,7 +142,8 @@ while true; do
             name=$(echo "$user_info" | cut -d'|' -f2)
             if [ -n "$email" ]; then
                 if [ "$status" = "UNREACHABLE" ] || [ "$status" = "UNKNOWN" ] || [ "$ip" = "(Unspecified)" ]; then
-                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: Teléfono Número '"$extension"' Desconectado\n\nEstimado/a '"$name"',\n\nHemos detectado que el teléfono número '"$extension"' no está conectado a la red. Le recomendamos verificar su conexión para evitar interrupciones en la recepción de llamadas.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
+                    subject=$(encode_subject "Teléfono Número $extension Desconectado")
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nHemos detectado que el teléfono número '"$extension"' no está conectado a la red. Le recomendamos verificar su conexión para evitar interrupciones en la recepción de llamadas.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
                     echo -e "$message" | $SENDMAIL -t 2>>"$LOG_FILE"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email: Teléfono Número $extension Desconectado"
@@ -144,7 +151,8 @@ while true; do
                         log "Error al enviar correo a $email: Teléfono Número $extension Desconectado"
                     fi
                 elif [ "$status" = "OK" ]; then
-                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: Teléfono Número '"$extension"' Reconectado\n\nEstimado/a '"$name"',\n\nNos complace informarle que el teléfono número '"$extension"' se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
+                    subject=$(encode_subject "Teléfono Número $extension Reconectado")
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nNos complace informarle que el teléfono número '"$extension"' se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
                     echo -e "$message" | $SENDMAIL -t 2>>"$LOG_FILE"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email: Teléfono Número $extension Reconectado"
