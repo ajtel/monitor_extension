@@ -1,6 +1,20 @@
 #!/bin/bash
 
-# Script para instalar el monitor de extensiones en FreePBX
+# ******INSTALADOR DE MONITOR DE CONEXION DE EXTENSIONES PARA PBX AJTEL *******
+# /* Copyright (C) 1995-2025  AJTEL Comunicaciones    <info@ajtel.net>
+#  * Copyright (C) 1995-2025  Andre Vivar Balderrama Bustamante <andrevivar@ajtel.net>
+# Desarrollado por AJTEL Comunicaciones y Andre Vivar Balderrama Bustamante
+
+# Configurar codificación para mostrar acentos correctamente
+export LC_ALL=C.UTF-8
+
+# Mostrar el encabezado al iniciar el script
+echo "******INSTALADOR DE MONITOR DE CONEXION DE EXTENSIONES PARA PBX AJTEL *******"
+echo "/* Copyright (C) 1995-2025  AJTEL Comunicaciones    <info@ajtel.net>"
+echo " * Copyright (C) 1995-2025  Andre Vivar Balderrama Bustamante <andrevivar@ajtel.net>"
+echo "Desarrollado por AJTEL Comunicaciones y Andre Vivar Balderrama Bustamante"
+echo ""
+sleep 10
 
 # Colores para mensajes
 RED='\033[0;31m'
@@ -22,22 +36,39 @@ if [ "$(id -u)" != "0" ]; then
     error "Este script debe ejecutarse como root. Usa sudo."
 fi
 
-# Instalar dependencias (mysql y postfix si no están instalados)
-log "Instalando dependencias..."
-yum -y install mariadb postfix || error "No se pudieron instalar las dependencias."
+# Extraer credenciales de /etc/freepbx.conf
+log "Extrayendo credenciales de la base de datos desde /etc/freepbx.conf..."
+if [ -f /etc/freepbx.conf ]; then
+    MYSQL_USER=$(grep 'AMPDBUSER' /etc/freepbx.conf | sed -n "s/.*AMPDBUSER.*=.*\"\(.*\)\";.*/\1/p")
+    MYSQL_PASS=$(grep 'AMPDBPASS' /etc/freepbx.conf | sed -n "s/.*AMPDBPASS.*=.*\"\(.*\)\";.*/\1/p")
+    MYSQL_DB=$(grep 'AMPDBNAME' /etc/freepbx.conf | sed -n "s/.*AMPDBNAME.*=.*\"\(.*\)\";.*/\1/p")
+else
+    error "No se encontró el archivo /etc/freepbx.conf. Por favor, verifica la instalación de FreePBX."
+fi
+
+if [ -z "$MYSQL_USER" ] || [ -z "$MYSQL_PASS" ] || [ -z "$MYSQL_DB" ]; then
+    error "No se pudieron extraer las credenciales de la base de datos desde /etc/freepbx.conf."
+fi
+
+log "Credenciales extraídas: MYSQL_USER=$MYSQL_USER, MYSQL_DB=$MYSQL_DB"
 
 # Copiar el script principal
 log "Copiando el script monitor_extension.sh..."
 cat > /usr/local/bin/monitor_extension.sh << 'EOF'
 #!/bin/bash
 
+# ******MONITOR DE CONEXION DE EXTENSIONES PARA PBX AJTEL *******
+# /* Copyright (C) 1995-2025  AJTEL Comunicaciones    <info@ajtel.net>
+#  * Copyright (C) 1995-2025  Andre Vivar Balderrama Bustamante <andrevivar@ajtel.net>
+# Desarrollado por AJTEL Comunicaciones y Andre Vivar Balderrama Bustamante
+
 # Archivo para almacenar el estado anterior
 STATE_FILE="/tmp/extension_status.txt"
 
 # Conexión a la base de datos de FreePBX
-MYSQL_USER="freepbxuser"
-MYSQL_PASS="ct/o3RkzCGpk"
-MYSQL_DB="asterisk"
+MYSQL_USER="MYSQL_USER_VALUE"
+MYSQL_PASS="MYSQL_PASS_VALUE"
+MYSQL_DB="MYSQL_DB_VALUE"
 
 # Archivo de log para depuración
 LOG_FILE="/var/log/monitor_extension.log"
@@ -105,7 +136,7 @@ while true; do
             name=$(echo "$user_info" | cut -d'|' -f2)
             if [ -n "$email" ]; then
                 if [ "$status" = "UNREACHABLE" ] || [ "$status" = "UNKNOWN" ] || [ "$ip" = "(Unspecified)" ]; then
-                    message="From: $SMTP_FROM\nTo: $email\nSubject: Teléfono Número $extension Desconectado\n\nEstimado/a $name,\n\nHemos detectado que el teléfono número $extension no está conectado a la red. Le recomendamos verificar su conexión para evitar interrupciones en la recepción de llamadas.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea"
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: Teléfono Número '"$extension"' Desconectado\n\nEstimado/a '"$name"',\n\nHemos detectado que el teléfono número '"$extension"' no está conectado a la red. Le recomendamos verificar su conexión para evitar interrupciones en la recepción de llamadas.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
                     echo -e "$message" | $SENDMAIL -t 2>>"$LOG_FILE"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email: Teléfono Número $extension Desconectado"
@@ -113,7 +144,7 @@ while true; do
                         log "Error al enviar correo a $email: Teléfono Número $extension Desconectado"
                     fi
                 elif [ "$status" = "OK" ]; then
-                    message="From: $SMTP_FROM\nTo: $email\nSubject: Teléfono Número $extension Reconectado\n\nEstimado/a $name,\n\nNos complace informarle que el teléfono número $extension se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea"
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: Teléfono Número '"$extension"' Reconectado\n\nEstimado/a '"$name"',\n\nNos complace informarle que el teléfono número '"$extension"' se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
                     echo -e "$message" | $SENDMAIL -t 2>>"$LOG_FILE"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email: Teléfono Número $extension Reconectado"
@@ -133,6 +164,11 @@ while true; do
     sleep 60
 done
 EOF
+
+# Sustituir las credenciales en el script generado
+sed -i "s/MYSQL_USER_VALUE/$MYSQL_USER/" /usr/local/bin/monitor_extension.sh
+sed -i "s/MYSQL_PASS_VALUE/$MYSQL_PASS/" /usr/local/bin/monitor_extension.sh
+sed -i "s/MYSQL_DB_VALUE/$MYSQL_DB/" /usr/local/bin/monitor_extension.sh
 
 # Configurar permisos para el script
 log "Configurando permisos para monitor_extension.sh..."
