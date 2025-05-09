@@ -21,7 +21,7 @@ if [ "$(id -u)" != "0" ]; then
     echo "Error: Este script debe ejecutarse como root. Usa sudo."
     exit 1
 fi
-echo "Paso 1 completado: Script ejecut&aacute;ndose como root."
+echo "Paso 1 completado: Script ejecutándose como root."
 
 echo "Paso 2: Extrayendo credenciales de /etc/freepbx.conf..."
 # Extraer credenciales de /etc/freepbx.conf
@@ -30,7 +30,7 @@ if [ -f /etc/freepbx.conf ]; then
     MYSQL_PASS=$(grep 'AMPDBPASS' /etc/freepbx.conf | sed -n "s/.*AMPDBPASS.*=.*\"\(.*\)\";.*/\1/p")
     MYSQL_DB=$(grep 'AMPDBNAME' /etc/freepbx.conf | sed -n "s/.*AMPDBNAME.*=.*\"\(.*\)\";.*/\1/p")
 else
-    echo "Error: No se encontr&oacute; el archivo /etc/freepbx.conf."
+    echo "Error: No se encontró el archivo /etc/freepbx.conf."
     exit 1
 fi
 
@@ -38,30 +38,30 @@ if [ -z "$MYSQL_USER" ] || [ -z "$MYSQL_PASS" ] || [ -z "$MYSQL_DB" ]; then
     echo "Error: No se pudieron extraer las credenciales de la base de datos."
     exit 1
 fi
-echo "Paso 2 completado: Credenciales extra&iacute;das - MYSQL_USER=$MYSQL_USER, MYSQL_DB=$MYSQL_DB"
+echo "Paso 2 completado: Credenciales extraídas - MYSQL_USER=$MYSQL_USER, MYSQL_DB=$MYSQL_DB"
 
-echo "Paso 3: Probando conexi&oacute;n a la base de datos..."
+echo "Paso 3: Probando conexión a la base de datos..."
 # Probar la conexión a la base de datos
-echo "Probando conexi&oacute;n a la base de datos con usuario $MYSQL_USER y base de datos $MYSQL_DB..."
+echo "Probando conexión a la base de datos con usuario $MYSQL_USER y base de datos $MYSQL_DB..."
 mysql -u"$MYSQL_USER" -p"$MYSQL_PASS" -D"$MYSQL_DB" -e "SELECT 1"
 if [ $? -ne 0 ]; then
-    echo "Conexi&oacute;n fallida con las credenciales extra&iacute;das. Intentando otras fuentes..."
+    echo "Conexión fallida con las credenciales extraídas. Intentando otras fuentes..."
     if [ -f /etc/asterisk/freepbx.conf ]; then
         MYSQL_USER=$(grep 'AMPDBUSER' /etc/asterisk/freepbx.conf | sed -n "s/.*AMPDBUSER.*=.*\"\(.*\)\";.*/\1/p")
         MYSQL_PASS=$(grep 'AMPDBPASS' /etc/asterisk/freepbx.conf | sed -n "s/.*AMPDBPASS.*=.*\"\(.*\)\";.*/\1/p")
         MYSQL_DB=$(grep 'AMPDBNAME' /etc/asterisk/freepbx.conf | sed -n "s/.*AMPDBNAME.*=.*\"\(.*\)\";.*/\1/p")
-        echo "Probando conexi&oacute;n a la base de datos con usuario $MYSQL_USER y base de datos $MYSQL_DB..."
+        echo "Probando conexión a la base de datos con usuario $MYSQL_USER y base de datos $MYSQL_DB..."
         mysql -u"$MYSQL_USER" -p"$MYSQL_PASS" -D"$MYSQL_DB" -e "SELECT 1"
         if [ $? -ne 0 ]; then
             echo "Error: No se pudo conectar a la base de datos."
             exit 1
         fi
     else
-        echo "Error: No se pudo conectar a la base de datos y no se encontr&oacute; /etc/asterisk/freepbx.conf."
+        echo "Error: No se pudo conectar a la base de datos y no se encontró /etc/asterisk/freepbx.conf."
         exit 1
     fi
 fi
-echo "Paso 3 completado: Conexi&oacute;n a la base de datos exitosa."
+echo "Paso 3 completado: Conexión a la base de datos exitosa."
 
 echo "Paso 4: Copiando el script principal..."
 # Copiar el script principal
@@ -99,10 +99,10 @@ log "Script iniciado."
 # Verificar si Asterisk está disponible
 log "Verificando disponibilidad de Asterisk..."
 if ! $ASTERISK -rx 'core show version' >/dev/null 2>>"$ERROR_LOG"; then
-    error_log "Error: No se pudo conectar a Asterisk. Verifica que el servicio est&eacute; corriendo."
+    error_log "Error: No se pudo conectar a Asterisk. Verifica que el servicio esté corriendo."
     exit 1
 fi
-log "Asterisk est&aacute; disponible."
+log "Asterisk está disponible."
 
 encode_subject() {
     subject="$1"
@@ -110,12 +110,19 @@ encode_subject() {
     echo "=?UTF-8?B?$(echo -n "$subject" | base64)?="
 }
 
+encode_from() {
+    name="$1"
+    email="$2"
+    encoded_name="=?UTF-8?B?$(echo -n "$name" | base64)?="
+    echo "$encoded_name <$email>"
+}
+
 get_user_info() {
     extension=$1
-    log "Obteniendo informaci&oacute;n para la extensi&oacute;n $extension"
+    log "Obteniendo información para la extensión $extension"
     result=$($MYSQL -u$MYSQL_USER -p$MYSQL_PASS -D$MYSQL_DB -N -e "SELECT email, displayname, fname, lname FROM userman_users WHERE default_extension = '$extension'" 2>>"$ERROR_LOG")
     if [ $? -ne 0 ]; then
-        error_log "Error al conectar a la base de datos para la extensi&oacute;n $extension"
+        error_log "Error al conectar a la base de datos para la extensión $extension"
         echo ""
         return 1
     fi
@@ -133,15 +140,17 @@ get_user_info() {
     fi
 
     if [ -n "$email" ]; then
-        log "Informaci&oacute;n obtenida para extensi&oacute;n $extension: email=$email, name=$name"
+        log "Información obtenida para extensión $extension: email=$email, name=$name"
         echo "$email|$name"
     else
-        log "No se encontr&oacute; email para extensi&oacute;n $extension"
+        log "No se encontró email para extensión $extension"
         echo ""
     fi
 }
 
-SMTP_FROM="Tu servicio de telefon&iacute;a AJTEL <soporte@ajtel.net>"
+SMTP_FROM_NAME="Tu servicio de telefonía AJTEL"
+SMTP_FROM_EMAIL="soporte@ajtel.net"
+SMTP_FROM=$(encode_from "$SMTP_FROM_NAME" "$SMTP_FROM_EMAIL")
 
 log "Inicializando archivos de estado y log."
 [ ! -f "$STATE_FILE" ] && touch "$STATE_FILE"
@@ -151,23 +160,23 @@ log "Inicializando archivos de estado y log."
 while true; do
     log "Iniciando ciclo de monitoreo."
     $ASTERISK -rx 'sip show peers' 2>>"$ERROR_LOG" | grep -E '^[0-9]+/' | while read -r line; do
-        log "Procesando l&iacute;nea: $line"
+        log "Procesando línea: $line"
         extension=$(echo "$line" | awk '{print $1}' | cut -d'/' -f1)
         ip=$(echo "$line" | awk '{print $2}')
         status=$(echo "$line" | awk '{print $8}' | grep -E '^(OK|UNREACHABLE|UNKNOWN)$' || echo "$line" | awk '{print $9}' | grep -E '^(OK|UNREACHABLE|UNKNOWN)$' || echo "UNKNOWN")
         prev_status=$(grep "^$extension " "$STATE_FILE" | awk '{print $2}' || echo "UNKNOWN")
-        log "Extensi&oacute;n $extension: IP=$ip, Estado actual=$status, Estado anterior=$prev_status"
+        log "Extensión $extension: IP=$ip, Estado actual=$status, Estado anterior=$prev_status"
 
         if [ "$status" != "$prev_status" ]; then
-            log "Estado cambiado para extensi&oacute;n $extension, obteniendo informaci&oacute;n del usuario."
+            log "Estado cambiado para extensión $extension, obteniendo información del usuario."
             user_info=$(get_user_info "$extension")
             email=$(echo "$user_info" | cut -d'|' -f1)
             name=$(echo "$user_info" | cut -d'|' -f2)
             if [ -n "$email" ]; then
                 if [ "$status" = "UNREACHABLE" ] || [ "$status" = "UNKNOWN" ] || [ "$ip" = "(Unspecified)" ]; then
-                    subject=$(encode_subject "Tel&eacute;fono N&uacute;mero $extension Desconectado")
-                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nHemos detectado que el tel&eacute;fono n&uacute;mero '"$extension"' no est&aacute; conectado a la red. Le recomendamos verificar su conexi&oacute;n para evitar interrupciones en la recepci&oacute;n de llamadas.\n\nAtentamente,\nTu servicio de telefon&iacute;a AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu l&iacute;nea'
-                    log "Enviando correo a $email: Tel&eacute;fono N&uacute;mero $extension Desconectado"
+                    subject=$(encode_subject "Teléfono Número $extension Desconectado")
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nHemos detectado que el teléfono número '"$extension"' no está conectado a la red. Le recomendamos verificar su conexión para evitar interrupciones en la recepción de llamadas.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
+                    log "Enviando correo a $email: Teléfono Número $extension Desconectado"
                     echo -e "$message" | $SENDMAIL -t 2>>"$ERROR_LOG"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email"
@@ -175,9 +184,9 @@ while true; do
                         error_log "Error al enviar correo a $email"
                     fi
                 elif [ "$status" = "OK" ]; then
-                    subject=$(encode_subject "Tel&eacute;fono N&uacute;mero $extension Reconectado")
-                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nNos complace informarle que el tel&eacute;fono n&uacute;mero '"$extension"' se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefon&iacute;a AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu l&iacute;nea'
-                    log "Enviando correo a $email: Tel&eacute;fono N&uacute;mero $extension Reconectado"
+                    subject=$(encode_subject "Teléfono Número $extension Reconectado")
+                    message='From: '"$SMTP_FROM"'\nTo: '"$email"'\nSubject: '"$subject"'\nContent-Type: text/plain; charset=UTF-8\n\nEstimado/a '"$name"',\n\nNos complace informarle que el teléfono número '"$extension"' se ha reconectado exitosamente a la red. Ahora puede realizar y recibir llamadas con normalidad.\n\nAtentamente,\nTu servicio de telefonía AJTEL\nContacto: soporte@ajtel.net | Tel: +52 (55) 8526-5050 o *511 desde tu línea'
+                    log "Enviando correo a $email: Teléfono Número $extension Reconectado"
                     echo -e "$message" | $SENDMAIL -t 2>>"$ERROR_LOG"
                     if [ $? -eq 0 ]; then
                         log "Correo enviado exitosamente a $email"
@@ -188,11 +197,11 @@ while true; do
             fi
         fi
 
-        log "Actualizando estado para extensi&oacute;n $extension"
+        log "Actualizando estado para extensión $extension"
         grep -v "^$extension " "$STATE_FILE" > /tmp/state_tmp.txt
         echo "$extension $status" >> /tmp/state_tmp.txt
         mv /tmp/state_tmp.txt "$STATE_FILE" 2>>"$ERROR_LOG"
-        log "Estado actualizado para extensi&oacute;n $extension"
+        log "Estado actualizado para extensión $extension"
     done
     log "Ciclo de monitoreo completado, esperando 60 segundos."
     sleep 60
@@ -241,4 +250,4 @@ systemctl enable monitor_extension.service
 systemctl start monitor_extension.service
 echo "Paso 8 completado: Servicio configurado y activado."
 
-echo "Instalaci&oacute;n completada exitosamente."
+echo "Instalación completada exitosamente."
